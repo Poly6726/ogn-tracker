@@ -431,7 +431,11 @@ static esp_adc_cal_characteristics_t *ADC_characs =
 #ifdef BATT_ADC_CHANNEL
 static const adc1_channel_t ADC_Chan_Batt = BATT_ADC_CHANNEL;  // ADC1_CHANNEL_0 for GPIO 1 or ADC1_CHANNEL_3 for GPIO 4
 #else
+#ifdef WITH_LILYGOT3S3
+static const adc1_channel_t ADC_Chan_Batt = ADC1_CHANNEL_0; // ADC channel #0 is GPIO1
+#else
 static const adc1_channel_t ADC_Chan_Batt = ADC1_CHANNEL_7; // ADC channel #7 is GPIO35
+#endif
 #endif
 static const adc_atten_t ADC_atten = ADC_ATTEN_DB_11;
 static const adc_unit_t ADC_unit = ADC_UNIT_1;
@@ -1059,7 +1063,9 @@ Parameters.ReadFromFile("/spiffs/WIFI.CFG");
 
 #ifdef WITH_OLED
   OLED.begin();
+#ifndef WITH_LILYGOT3S3  
   OLED.setDisplayRotation(U8G2_R2);
+#endif  
   OLED.clearBuffer();
   OLED_DrawLogo(OLED.getU8g2(), 0);
   OLED.sendBuffer();

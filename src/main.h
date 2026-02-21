@@ -73,6 +73,14 @@ uint32_t getUniqueAddress(void);
 #include "thinknode-m5-pins.h"
 #endif
 
+#ifdef WITH_XIAOS3
+#include "xiao_s3_sx1262_pins.h"
+#endif
+
+#ifdef WITH_LILYGOT3S3
+#include "lilygo_t3s3_pins.h"
+#endif
+
 const uint8_t KNOB_Tick = 15;
 #include "play.h"
 
