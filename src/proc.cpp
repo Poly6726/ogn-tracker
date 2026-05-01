@@ -842,6 +842,9 @@ void vTaskPROC(void* pvParameters)
 #ifdef WITH_GPS_MTK
     if(msTime<300) SlotTime--;                                          // lasts up to 0.300sec after the PPS
 #endif
+#ifdef WITH_GPS_PAIR
+    if(msTime<200) SlotTime--;                                          // lasts up to 0.300sec after the PPS
+#endif
 
     if(SlotTime==PrevSlotTime) continue;                                // stil same time slot, go back to RX processing
     // Serial.printf("PROC: %u(%u)\n", SlotTime, PrevSlotTime);

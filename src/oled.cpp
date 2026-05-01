@@ -35,6 +35,9 @@ void OLED_DrawLogo(u8g2_t *OLED, const GPS_Position *GPS)  // draw logo and hard
 #ifdef WITH_GPS_UBX
   u8g2_DrawStr(OLED,  0, 28 ,"UBX GPS");
 #endif
+#ifdef WITH_GPS_PAIR    // LC76G et. al.
+  u8g2_DrawStr(OLED,  0, 28 ,"LC76 GPS");
+#endif
 #ifdef WITH_SX1262
   u8g2_DrawStr(OLED,  0, 40 ,"SX1262");
 #endif

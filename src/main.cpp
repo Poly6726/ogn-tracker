@@ -1378,7 +1378,8 @@ static int ProcessInput(void)
       UBX.Clear(); }
 #endif
   }
-  return Count; }
+  return Count; 
+}
 
 // static uint32_t PrevMillis=0;
 

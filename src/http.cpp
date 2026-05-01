@@ -508,6 +508,10 @@ static void Table_System(httpd_req_t *Req)
 #ifdef WITH_GPS_SRF
   Len+=Format_String(Line+Len, "SRF GPS");
 #endif
+#ifdef WITH_GPS_PAIR
+  Len+=Format_String(Line+Len, "LC76 GPS");
+#endif
+
   Len+=Format_String(Line+Len, "</td></tr>\n");
   httpd_resp_send_chunk(Req, Line, Len);
 

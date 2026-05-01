@@ -442,6 +442,18 @@ static void GPS_BurstStart(int CharDelay=0)  // when GPS starts sending the data
         GPS_Cmd[Len]=0;
         Format_String(GPS_UART_Write, GPS_Cmd, Len, 0);
 #endif // WITH_GPS_SRF
+#ifdef WITH_GPS_PAIR    // LC76G et. al.
+        {
+          strcpy(GPS_Cmd, "$PAIR864,0,0,");
+          if(GPS_TargetBaudRate == 9600)
+            strcat(GPS_Cmd, "9600");
+          else
+            strcat(GPS_Cmd, "115200");
+          uint8_t Len = strlen(GPS_Cmd);
+          Len += NMEA_AppendCheckCRNL(GPS_Cmd, Len);
+          GPS_Cmd[Len]=0;
+          Format_String(GPS_UART_Write, GPS_Cmd, Len, 0); }
+#endif // WITH_GPS_PAIR
         // GPS_UART_Flush(500);                                                 // wait for all data to be sent to the GPS
         // GPS_UART_SetBaudrate(GPS_TargetBaudRate); GPS_BaudRate=GPS_TargetBaudRate;   // switch serial port to the new baudrate
       }

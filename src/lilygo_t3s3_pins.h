@@ -4,7 +4,7 @@
 #define GPS_UART UART_NUM_1  // UART for GPS
 #define GPS_PinTx      43 // Tx-Data
 #define GPS_PinRx      44 // Rx-Data
-#define GPS_PinPPS     39 // PPS
+#define GPS_PinPPS     38 // PPS
 #define GPS_PinEna     40 // enable/wakeup
 
 // SX1262 RF chip
