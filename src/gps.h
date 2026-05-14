@@ -42,7 +42,7 @@ typedef union
              bool BaudConfig:1; // baudrate is configured
              bool ModeConfig:1; // navigation mode is configured
              bool RateConfig:1; // navigation rate is configured
-             bool           :1; //
+             bool       PAIR:1; //
            } ;
          } Status;                          //
 

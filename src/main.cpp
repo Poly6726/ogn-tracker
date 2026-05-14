@@ -108,6 +108,8 @@
 // #include "USBCDC.h"
 #endif
 
+bool usbserial_connected=false;
+
 // =======================================================================================================
 
 uint64_t getUniqueMAC(void)                                  // 48-bit unique ID of the ESP32 chip
@@ -580,7 +582,9 @@ static BluetoothSerial BTserial;
 #endif
 
 void CONS_UART_Write(char Byte) // write byte to the console (USB serial port)
-{ Serial.write(Byte);
+{ 
+  if(usbserial_connected)
+    Serial.write(Byte);
 #ifdef WITH_BT4_SPP
   BT_SPP_Write(Byte);
 #endif
@@ -794,6 +798,22 @@ void setup()
    USBSerial.begin(Parameters.CONbaud);
 #else
   Serial.begin(Parameters.CONbaud);          // for USB Console baud rate probably does not matter here
+
+#if ARDUINO_USB_CDC_ON_BOOT==1
+  uint32_t delcnt=0;
+  usbserial_connected = true;
+  while(!Serial)
+  {
+    delay(100);
+    if(++delcnt>=20)
+    {
+      usbserial_connected = false;
+      Serial.setTxTimeoutMs(0); // to prevent delays and blocking of threads which send data to the USB console
+      break;
+    }
+  }
+#endif
+
 #endif
 
 // ovewrite Parameters with any entries from local files
@@ -813,9 +833,9 @@ Parameters.ReadFromFile("/spiffs/WIFI.CFG");
 #endif
 
 
-#if ARDUINO_USB_CDC_ON_BOOT==1
-  Serial.setTxTimeoutMs(10);                 // to prevent delays and blocking of threads which send data to the USB console
-#endif
+// #if ARDUINO_USB_CDC_ON_BOOT==1
+//   Serial.setTxTimeoutMs(10);                 // to prevent delays and blocking of threads which send data to the USB console
+// #endif
 
   GPS_UART_Init();
 
@@ -1299,6 +1319,7 @@ static void ProcessCtrlC(void)                                  // print system 
   if(GPS_Status.NMEA)        Format_String(CONS_UART_Write, ",NMEA");
   if(GPS_Status.UBX)         Format_String(CONS_UART_Write, ",UBX");
   if(GPS_Status.MAV)         Format_String(CONS_UART_Write, ",MAV");
+  if(GPS_Status.PAIR)        Format_String(CONS_UART_Write, ",PAIR");
   if(GPS_Status.BaudConfig)  Format_String(CONS_UART_Write, ",BaudOK");
   if(GPS_Status.ModeConfig)  Format_String(CONS_UART_Write, ",ModeOK");
   CONS_UART_Write('\r'); CONS_UART_Write('\n');

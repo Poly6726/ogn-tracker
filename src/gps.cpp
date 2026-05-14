@@ -7,6 +7,9 @@
 #include "ctrl.h"
 #include "nmea.h"
 #include "ubx.h"
+#ifdef WITH_GPS_PAIR
+#include "pair.h"
+#endif
 #ifdef WITH_MAVLINK
 #include "mavlink.h"
 #include "atmosphere.h"
@@ -36,6 +39,9 @@ static UBX_RxMsg   UBX;                  // UBX messages catcher
 #endif
 #ifdef WITH_MAVLINK
 static MAV_RxMsg   MAV;                  // MAVlink message catcher
+#endif
+#ifdef WITH_GPS_PAIR
+static PAIR_RxMsg   PAIR;                // PAIR message catcher
 #endif
 
 uint16_t GPS_PosPeriod = 0;                    // [mss] time between succecive GPS readouts
@@ -1034,6 +1040,143 @@ static void GPS_MAV(void)                                                  // wh
 }
 #endif
 
+
+#ifdef WITH_GPS_PAIR
+#ifdef DEBUG_PRINT
+static void DumpPAIR(void)
+{ Format_String(CONS_UART_Write, "PAIR: ");
+  Format_UnsDec(CONS_UART_Write, xTaskGetTickCount(), 6, 3);
+  CONS_UART_Write(' '); Format_Hex(CONS_UART_Write, PAIR.Class);
+  CONS_UART_Write(':'); Format_Hex(CONS_UART_Write, PAIR.ID);
+  CONS_UART_Write('_'); Format_UnsDec(CONS_UART_Write, (uint16_t)PAIR.Bytes);
+  for(uint8_t Idx=0; Idx<PAIR.Bytes; Idx++)
+  { CONS_UART_Write(' '); Format_Hex(CONS_UART_Write, PAIR.Byte[Idx]); }
+  Format_String(CONS_UART_Write, "\n"); }
+#endif // DEBUG_PRINT
+
+static void GPS_PAIR(void)                                                         // when GPS gets a PAIR packet
+{ GPS_Status.PAIR=1;
+  GPS_Status.BaudConfig = (GPS_getBaudRate() == GPS_TargetBaudRate);
+  LED_PCB_Flash(10);
+#ifdef DEBUG_PRINT
+  DumpPAIR();
+#endif
+  // GPS_Pos[GPS_PosIdx].ReadPAIR(PAIR);
+#ifdef WITH_GPS_PAIR_PASS
+  { if(xSemaphoreTake(CONS_Mutex, portMAX_DELAY))                                 // send ther UBX packet to the console
+    { PAIR.Send(CONS_UART_Write);
+    // DumpPAIR();
+    // Format_String(CONS_UART_Write, "PAIR");
+    // Format_Hex(CONS_UART_Write, PAIR.Class);
+    // Format_Hex(CONS_UART_Write, PAIR.ID);
+      xSemaphoreGive(CONS_Mutex); }
+  }
+#endif
+/*
+  if(PAIR.isMON_VER())                                                             // if version info
+  { class PAIR_MON_VER *VER = (class PAIR_MON_VER *)PAIR.Word;                       // create pointer to the packet content
+    strncpy(GPS_Firmware, VER->swVersion, 30); GPS_Firmware[30]=0;
+    strncpy(GPS_Hardware, VER->hwVersion, 10); GPS_Hardware[10]=0;
+    int ExtLen=strlen(GPS_Firmware);
+    for(uint16_t Idx=30+10; Idx<PAIR.Bytes; Idx+=30)
+    { int Len=strlen((const char *)PAIR.Byte+Idx); if(Len>=30) break;
+      GPS_Firmware[ExtLen++]=':';
+      strcpy(GPS_Firmware+ExtLen, (const char *)PAIR.Byte+Idx);
+      ExtLen+=Len; }
+    if(xSemaphoreTake(CONS_Mutex, 10))
+    { Format_String(CONS_UART_Write, "MON-VER [");
+      Format_UnsDec(CONS_UART_Write, PAIR.Bytes);
+      Format_String(CONS_UART_Write, "] ");
+      Format_String(CONS_UART_Write, GPS_Hardware);
+      CONS_UART_Write(':');
+      Format_String(CONS_UART_Write, GPS_Firmware);
+      CONS_UART_Write('\n');
+      xSemaphoreGive(CONS_Mutex); }
+  }
+
+#ifdef WITH_GPS_CONFIG
+
+  if(PAIR.isCFG_PRT())                                                             // if port configuration
+  { class PAIR_CFG_PRT *CFG = (class PAIR_CFG_PRT *)PAIR.Word;                       // create pointer to the packet content
+#ifdef DEBUG_PRINT
+    xSemaphoreTake(CONS_Mutex, portMAX_DELAY);
+    Format_String(CONS_UART_Write, "CFG-PRT: ");
+    DumpUBX();
+    Format_Hex(CONS_UART_Write, CFG->portID);
+    CONS_UART_Write(':');
+    Format_UnsDec(CONS_UART_Write, CFG->baudRate);
+    Format_String(CONS_UART_Write, "bps\n");
+    xSemaphoreGive(CONS_Mutex);
+#endif
+    if(CFG->baudRate==GPS_TargetBaudRate) GPS_Status.BaudConfig=1;                // if baudrate same as our target then declare the baud config is done
+    else                                                                          // otherwise use the received packet as the template
+    { CFG->baudRate=GPS_TargetBaudRate;                                           // set the baudrate to our target
+      CFG->outProtoMask|=0x02;                                                    // enable NMEA protocol
+      PAIR.RecalcCheck();                                                          // reclaculate the check sum
+#ifdef DEBUG_PRINT
+      xSemaphoreTake(CONS_Mutex, portMAX_DELAY);
+      Format_UnsDec(CONS_UART_Write, GPS_TargetBaudRate);
+      Format_String(CONS_UART_Write, "bps\n");
+      DumpPAIR();
+      xSemaphoreGive(CONS_Mutex);
+#endif
+      PAIR.Send(GPS_UART_Write);                                                   // send this UBX packet to the GPS
+    }
+  }
+    
+  if(PAIR.isCFG_NAV5())                                                            // Navigation config
+  { class UBX_CFG_NAV5 *CFG = (class UBX_CFG_NAV5 *)PAIR.Word;
+#ifdef DEBUG_PRINT
+    xSemaphoreTake(CONS_Mutex, portMAX_DELAY);
+    Format_String(CONS_UART_Write, "CFG-NAV5: ");
+    Format_Hex(CONS_UART_Write, CFG->dynModel);
+    Format_String(CONS_UART_Write, "\n");
+    xSemaphoreGive(CONS_Mutex);
+#endif
+    // if(CFG->dynModel==GPS_TargetDynModel) GPS_Status.ModeConfig=1;                // dynamic model = 6 => Airborne with >1g acceleration
+    if(CFG->dynModel==Parameters.NavMode) GPS_Status.ModeConfig=1;                // dynamic model = 6 => Airborne with >1g acceleration
+    else
+    { CFG->dynModel=Parameters.NavMode; CFG->mask = 0x01;                         //
+      PAIR.RecalcCheck();                                                          // reclaculate the check sum
+      PAIR.Send(GPS_UART_Write);                                                   // send this UBX packet
+    }
+  }
+  if(PAIR.isCFG_SBAS())                                                          // if CFG-SBAS
+  { class PAIR_CFG_SBAS *CFG = (class PAIR_CFG_SBAS *)PAIR.Word;
+    CFG->mode = Parameters.EnableSBAS;
+    CFG->usage=3;                                                               // integrity | diff.corr. | range
+    CFG->maxSBAS=3;
+    CFG->scanmode1=0;
+    CFG->scanmode2=0;
+    PAIR.RecalcCheck();                                                          // reclaculate the check sum
+    PAIR.Send(GPS_UART_Write);                                                   // send this UBX packet
+  }
+#ifdef DEBUG_PRINT
+  if(PAIR.isACK())
+  { xSemaphoreTake(CONS_Mutex, portMAX_DELAY);
+    Format_String(CONS_UART_Write, "TaskGPS: ACK_ ");
+    Format_Hex(CONS_UART_Write,  PAIR.ID);
+    CONS_UART_Write(' ');
+    Format_Hex(CONS_UART_Write,  PAIR.Byte[0]);
+    CONS_UART_Write(':');
+    Format_Hex(CONS_UART_Write,  PAIR.Byte[1]);
+    Format_String(CONS_UART_Write, "\n");
+    xSemaphoreGive(CONS_Mutex);
+  }
+   
+#endif
+#endif // WITH_GPS_CONFIG
+*/ 
+}
+#endif // WITH_GPS_PAIR
+
+
+
+
+
+
+
+
 // ----------------------------------------------------------------------------
 
 // Baud setting for SIRF GPS:
@@ -1098,6 +1241,9 @@ void vTaskGPS(void* pvParameters)
 #ifdef WITH_MAVLINK
   MAV.Clear();
 #endif
+#ifdef WITH_GPS_PAIR
+  PAIR.Clear();
+#endif
   for(uint8_t Idx=0; Idx<4; Idx++)
     GPS_Pos[Idx].Clear();
   GPS_PosIdx=0;
@@ -1115,19 +1261,28 @@ void vTaskGPS(void* pvParameters)
     LineIdle+=Delta;                                                      // count idle time
     NoValidData+=Delta;                                                   // count time without any valid NMEA nor UBX packet
     for( ; ; )                                                            // loop over bytes in the GPS UART buffer
-    { // int Bytes=GPS_UART_Read(ByteBuff, 128); if(Bytes<=0) break;
-      uint8_t Byte; int Err=GPS_UART_Read(Byte); if(Err<=0) break;        // get Byte from serial port, if no bytes then break this loop
+    { 
+      // int Bytes=GPS_UART_Read(ByteBuff, 128);  if(Bytes<=0) break;
+      uint8_t Byte; 
+      int Err=GPS_UART_Read(Byte); 
+      if(Err<=0) break;        // get Byte from serial port, if no bytes then break this loop
+      
       // Serial.printf("GPS:%d\n", Bytes);
       LineIdle=0;                                                         // if there was a byte: restart idle counting
-      // for(int Idx=0; Idx<Bytes; Idx++)
+      
+      // for(int Idx=0; Idx<Bytes; Idx++)  // copy the GPS output to console (for debug only)
       // { uint8_t Byte=ByteBuff[Idx];
-        // CONS_UART_Write(Byte);                                              // copy the GPS output to console (for debug only)
+     //   CONS_UART_Write(Byte);  // JJ: echo direct to console. Seems redundant though.
+                                                     
         NMEA.ProcessByte(Byte);                                             // process through the NMEA interpreter
 #ifdef WITH_GPS_UBX
         UBX.ProcessByte(Byte);
 #endif
 #ifdef WITH_MAVLINK
         MAV.ProcessByte(Byte);
+#endif
+#ifdef WITH_GPS_PAIR
+        PAIR.ProcessByte(Byte);
 #endif
         if(NMEA.isComplete())                                               // NMEA completely received ?
         { bool Good=NMEA.isChecked();                                       // NMEA check sum is correct ?
@@ -1139,6 +1294,9 @@ void vTaskGPS(void* pvParameters)
 #endif
 #ifdef WITH_MAVLINK
         if(MAV.isComplete()) { GPS_MAV(); NoValidData=0; MAV.Clear(); break; }
+#endif
+#ifdef WITH_GPS_PAIR
+        if(PAIR.isComplete()) { GPS_PAIR(); NoValidData=0; PAIR.Clear(); break; }
 #endif
       // }
     }
@@ -1170,12 +1328,12 @@ void vTaskGPS(void* pvParameters)
       { if(!GPS_Burst.Complete && GPS_Burst.GxGGA && GPS_Burst.GxRMC)
         { GPS_BurstComplete(); }                                           // if not complete yet, then declare burst complete
       }
-      else if(LineIdle>=1500)                                              // if idle for more than 1.5 sec
+      else if(LineIdle>=1500)                                              // (1500) if idle for more than 1.5 sec
       { GPS_Status.Flags=0; }
       if(GPS_Burst.Flags) GPS_BurstEnd();                                  // declare burst ended, if not yet done
     }
 
-    if(NoValidData>=2000)                                                  // if no valid data from GPS for 2sec
+    if(NoValidData>=2000)                                                  // (2000) if no valid data from GPS for 2sec
     { GPS_Status.Flags=0; GPS_Burst.Flags=0;                               // assume GPS state is unknown
       uint32_t NewBaudRate = GPS_nextBaudRate();                           // switch to the next baud rate
       if(PowerMode>0)
@@ -1193,6 +1351,8 @@ void vTaskGPS(void* pvParameters)
         GPS_ENABLE();
 #endif
         GPS_UART_Write('\n');
+#endif
+#ifdef WITH_GPS_PAIR
 #endif
       }
       if(xSemaphoreTake(CONS_Mutex, 10))
