@@ -179,7 +179,7 @@ int SPIFFS_Info(size_t &Total, size_t &Used, const char *Label)
   if(Label==0) Label=SPIFFS_Label;
   FATFS *FS=0;
   size_t FreeClusters;
-  int Ret = f_getfree("0:", &FreeClusters, &FS);
+  int Ret = f_getfree("0:", (DWORD*)&FreeClusters, &FS);
   // if(Ret=!FR_OK) return Ret;
   if(FS==0) return 0;
   size_t TotalSectors = (FS->n_fatent-2) * FS->csize;
@@ -433,7 +433,7 @@ static esp_adc_cal_characteristics_t *ADC_characs =
 #ifdef BATT_ADC_CHANNEL
 static const adc1_channel_t ADC_Chan_Batt = BATT_ADC_CHANNEL;  // ADC1_CHANNEL_0 for GPIO 1 or ADC1_CHANNEL_3 for GPIO 4
 #else
-#ifdef WITH_LILYGOT3S3
+#if defined  WITH_LILYGOT3S3 || defined WITH_ESP32C3SUPERMINI
 static const adc1_channel_t ADC_Chan_Batt = ADC1_CHANNEL_0; // ADC channel #0 is GPIO1
 #else
 static const adc1_channel_t ADC_Chan_Batt = ADC1_CHANNEL_7; // ADC channel #7 is GPIO35
@@ -1032,10 +1032,17 @@ Parameters.ReadFromFile("/spiffs/WIFI.CFG");
   if(DumpSummary)
   { esp_err_t Err = esp_core_dump_get_summary(DumpSummary);
     if (Err==ESP_OK)
-    { esp_core_dump_bt_info_t &BackTrace = DumpSummary->exc_bt_info;
+    {
+      esp_core_dump_bt_info_t &BackTrace = DumpSummary->exc_bt_info;
+#ifdef WITH_ESP32C3SUPERMINI
+      InfoLen=sprintf(Info, "Crash-dump: Task:%s PC:%08x [%d]\n", DumpSummary->exc_task, DumpSummary->exc_pc, BackTrace.dump_size);
+      for(uint32_t Idx=0; Idx<BackTrace.dump_size && Idx<16; Idx++)
+      { InfoLen+=sprintf(Info+InfoLen, " 0x%08x", BackTrace.stackdump[Idx]); }
+#else
       InfoLen=sprintf(Info, "Crash-dump: Task:%s PC:%08x [%d]\n", DumpSummary->exc_task, DumpSummary->exc_pc, BackTrace.depth);
       for(uint32_t Idx=0; Idx<BackTrace.depth && Idx<16; Idx++)
       { InfoLen+=sprintf(Info+InfoLen, " 0x%08x", BackTrace.bt[Idx]); }
+#endif      
     }
     free(DumpSummary); }
   if(InfoLen) Serial.println(Info);
@@ -1144,6 +1151,7 @@ void PrintTasks(void (*CONS_UART_Write)(char))
   Format_UnsDec(CONS_UART_Write, (uint32_t)FreeHeap, 4, 3);
   Format_String(CONS_UART_Write, "kB free\n");
 
+#ifndef WITH_ESP32C3SUPERMINI     // alas, no info about tasks on the ESP32-C3-Supermini
   UBaseType_t uxArraySize = uxTaskGetNumberOfTasks();
   TaskStatus_t *pxTaskStatusArray = (TaskStatus_t *)pvPortMalloc( uxArraySize * sizeof( TaskStatus_t ) );
   if(pxTaskStatusArray==0) return;
@@ -1153,13 +1161,14 @@ void PrintTasks(void (*CONS_UART_Write)(char))
     uint8_t Len=Format_String(Line, Task->pcTaskName, configMAX_TASK_NAME_LEN, 0);
     // for( ; Len<=configMAX_TASK_NAME_LEN; )
     //   Line[Len++]=' ';
-    Len+=Format_UnsDec(Line+Len, Task->uxCurrentPriority, 2); Line[Len++]=' ';
+    Len+=Format_UnsDec(Line+Len, (uint32_t)Task->uxCurrentPriority, 2); Line[Len++]=' ';
     // Line[Len++]='0'+Task->uxCurrentPriority; Line[Len++]=' ';
     Len+=Format_UnsDec(Line+Len, (uint32_t)(Task->usStackHighWaterMark), 3);
     Line[Len++]='\n'; Line[Len]=0;
     Format_String(CONS_UART_Write, Line);
   }
   vPortFree( pxTaskStatusArray );
+#endif  
 }
 
 static NMEA_RxMsg NMEA;
@@ -1296,9 +1305,9 @@ static void ProcessCtrlF(void)                                  // list log file
   Format_String(CONS_UART_Write, "SPIFFS: ");
   size_t Total, Used;
   if(SPIFFS_Info(Total, Used)==0)                            // get the SPIFFS usage summary
-  { Format_UnsDec(CONS_UART_Write, Used/1024);
+  { Format_UnsDec(CONS_UART_Write, (uint32_t)Used/1024);
     Format_String(CONS_UART_Write, "kB used, ");
-    Format_UnsDec(CONS_UART_Write, Total/1024);
+    Format_UnsDec(CONS_UART_Write, (uint32_t)Total/1024);
     Format_String(CONS_UART_Write, "kB total, "); }
   Format_UnsDec(CONS_UART_Write, Files);
   Format_String(CONS_UART_Write, " files\n");

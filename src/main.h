@@ -81,6 +81,10 @@ uint32_t getUniqueAddress(void);
 #include "lilygo_t3s3_pins.h"
 #endif
 
+#ifdef WITH_ESP32C3SUPERMINI
+#include "esp32c3supermini-pins.h"  
+#endif
+
 const uint8_t KNOB_Tick = 15;
 #include "play.h"
 

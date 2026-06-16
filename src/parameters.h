@@ -581,8 +581,8 @@ uint16_t StratuxPort;
     if(RFchipTypeHW) Line[Len++]='H';
     Line[Len++]='W';
 #endif
-#ifdef WITH_RFM95
-    Len+=Format_String(Line+Len, " RFM95");
+#ifdef WITH_SX1276
+    Len+=Format_String(Line+Len, " SX1276");
 #endif
 #ifdef WITH_SX1272
     Len+=Format_String(Line+Len, " SX1272");

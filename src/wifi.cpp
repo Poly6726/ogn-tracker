@@ -1,5 +1,7 @@
 #include <string.h>
+#ifndef WITH_ESP32C3SUPERMINI
 #include "config.h"  //Added By Fab501
+#endif
 #include "wifi.h"
 #include "format.h"
 #include "main.h"

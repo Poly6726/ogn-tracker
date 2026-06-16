@@ -516,8 +516,8 @@ static void Table_System(httpd_req_t *Req)
   httpd_resp_send_chunk(Req, Line, Len);
 
   Len =Format_String(Line, "<tr><td>Radio</td><td align=\"right\">");
-#ifdef WITH_RFM95
-  Len+=Format_String(Line+Len, "RFM95");
+#ifdef WITH_SX1276
+  Len+=Format_String(Line+Len, "SX1276");
 #endif
 #ifdef WITH_RFM69
   Len+=Format_String(Line+Len, "RFM69");
@@ -778,7 +778,7 @@ static void Table_RF(httpd_req_t *Req)
 #ifdef WITH_RFM69
   Len+=Format_String(Line+Len, "RFM69");
 #endif
-#ifdef WITH_RFM95
+#ifdef WITH_SX1276
   Len+=Format_String(Line+Len, "sx1276");
 #endif
 #ifdef WITH_SX1272
