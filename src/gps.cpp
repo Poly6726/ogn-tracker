@@ -1272,8 +1272,11 @@ void vTaskGPS(void* pvParameters)
       
       // for(int Idx=0; Idx<Bytes; Idx++)  // copy the GPS output to console (for debug only)
       // { uint8_t Byte=ByteBuff[Idx];
-     //   CONS_UART_Write(Byte);  // JJ: echo direct to console. Seems redundant though.
-                                                     
+
+#ifdef WITH_GPS_CONSOLE_ECHO
+        CONS_UART_Write(Byte);  // JJ: echo direct to console. Seems redundant though.
+#endif
+
         NMEA.ProcessByte(Byte);                                             // process through the NMEA interpreter
 #ifdef WITH_GPS_UBX
         UBX.ProcessByte(Byte);
